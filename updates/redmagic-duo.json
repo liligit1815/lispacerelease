@@ -3,15 +3,15 @@
   "appId": "redmagic-duo",
   "packageName": "ls.augment.com",
   "release": {
-    "versionCode": 20518,
-    "versionName": "2.0.0-alpha1-test20518",
+    "versionCode": 20519,
+    "versionName": "2.0.0-alpha1-test20519",
     "minSdk": 35,
-    "publishedAt": "2026-10-11T12:12:57Z",
-    "notes": "新增红魔 Duo 软件内在线更新。\n\n- 打开配置应用后每天自动检查一次，也可在“关于”页手动检查。\n- 发现新版后显示版本与更新说明，由用户确认下载。\n- 下载完成后校验安装包，再打开系统安装界面。\n- 同步联网说明，检查失败不影响日常使用。\n\n延续原发行签名。首次使用在线更新需要先手动安装此版本。本版继承项目当前开发版本的其他改动；设备上的更新界面与安装流程仍待真机验证。",
+    "publishedAt": "2026-10-11T14:35:50Z",
+    "notes": "通知堆叠升级：新增大堆叠、小堆叠。\n\n- 总开关开启后，通知与静默分别折叠，各显示最新首卡，点击上方箭头展开；保留静默标题。\n- 大堆叠开启后，两类合成一堆，优先显示通知区域最新一条；展开后恢复通知与静默分类列表。\n- 小堆叠将分类内的同应用通知收起，支持独立展开；应用已有的原生通知组和原有操作继续保留。\n- 大、小堆叠开关默认关闭，可组合使用。旧尾部压缩参数从设置页撤下，已有配置保持兼容。\n- 针对下拉闪烁移除旧的尾部压缩与反复恢复布局路径。构建和相关回归通过，实际动画、点击区域及闪烁是否消失仍待真机验证。\n\n沿用原发行签名，保留软件内在线更新。更新后请通过模块现有“重启作用域”入口重启状态栏（SystemUI），加载新实现。",
     "apk": {
-      "url": "https://github.com/liligit1815/lispacerelease/releases/download/redmagic-duo-v20518/redmagic-duo-20518.apk",
-      "size": 8182772,
-      "sha256": "a4dec8f3a19150ac140353e35963bdb53106870b74e9ef4c5ca09f6e9f8820a8",
+      "url": "https://github.com/liligit1815/lispacerelease/releases/download/redmagic-duo-v20519/redmagic-duo-20519.apk",
+      "size": 8199616,
+      "sha256": "dd8bfd7b1ce34df35ad217b701c19d283136ed0ef11e6e89c47042f8064cb924",
       "certificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"
     }
   }
