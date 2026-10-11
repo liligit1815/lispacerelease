@@ -2,5 +2,17 @@
   "schemaVersion": 1,
   "appId": "iqoo-shoulder",
   "packageName": "ls.iqooaugment.com",
-  "release": null
+  "release": {
+    "versionCode": 10011,
+    "versionName": "0.1.0-alpha11",
+    "minSdk": 29,
+    "publishedAt": "2026-10-11T12:11:21Z",
+    "notes": "新增软件内在线更新。\n\n- 打开应用后每天自动检查一次，也可在“关于”页手动检查。\n- 发现新版后显示版本与更新说明，由用户确认下载。\n- 下载完成后校验安装包，再打开系统安装界面。\n- 支持下载进度、取消与已下载安装包恢复。\n\n延续原发行签名，可覆盖已有同签名版本。首次使用在线更新需要先手动安装此版本。",
+    "apk": {
+      "url": "https://github.com/liligit1815/lispacerelease/releases/download/iqoo-shoulder-v10011/iqoo-shoulder-10011.apk",
+      "size": 220494,
+      "sha256": "b07eb7b4b54fbaa70a93d8f64eeae581d6fac0a71765fd0ebf19ac397d91db49",
+      "certificateSha256": "7181eae8b831a960d040f9f5c00b656f08849b080751772e81c66c37d01224f2"
+    }
+  }
 }
