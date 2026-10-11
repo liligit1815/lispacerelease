@@ -1,0 +1,12 @@
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+.env
+__pycache__/
+*.pyc
+out/
+local.properties
