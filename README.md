@@ -32,6 +32,8 @@ python tools/publish.py --app redmagic-duo --apk "新版.apk" --notes-file "更�
 
 `--dry-run` 检查 APK 并显示发布计划，检查通过后去掉该参数进行发布。其他软件将 `--app` 改为 `stacked-desktop` 或 `iqoo-shoulder`。
 
+发布直接更新 GitHub 上的清单，本地发布记录保存到忽略的 `out/published/`。需要同步本地仓库清单时运行 `git pull --ff-only`；先同步再进行下一次离线预检查。
+
 每个软件只有一个更新通道。运行发布工具就表示选择该版本推送给用户；版本名包含 alpha/test 的版本同样可以被选择。工具拒绝降低 `versionCode`、以同版本号换包、改变既有签名或上传其他软件的 APK。网络中断时清单保持旧版本，可以用相同命令重试。
 
 每个软件、版本分别生成标签，例如 `redmagic-duo-v20518`。客户端读取独立清单，避免仓库级“Latest”混淆多个软件。

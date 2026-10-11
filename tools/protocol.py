@@ -5,7 +5,7 @@ import re
 from urllib.parse import urlsplit
 
 REPOSITORY = "liligit1815/lispacerelease"
-MAX_APK_SIZE = 2 * 1024**3 - 1
+MAX_APK_SIZE = 512 * 1024**2
 MAX_FEED_SIZE = 64 * 1024
 
 
@@ -27,7 +27,7 @@ def validate_feed(feed, app):
     require(isinstance(release, dict), "release 必须是对象或 null")
     require(type(release.get("versionCode")) is int and 0 < release["versionCode"] <= 2**31 - 1,
             "versionCode 必须为正整数")
-    require(isinstance(release.get("versionName"), str) and 0 < len(release["versionName"]) <= 128,
+    require(isinstance(release.get("versionName"), str) and 0 < len(release["versionName"]) <= 100,
             "缺少有效的显示版本")
     require(type(release.get("minSdk")) is int and release["minSdk"] > 0, "无效的 minSdk")
     require(isinstance(release.get("notes"), str) and len(release["notes"]) <= 12000,
@@ -51,7 +51,7 @@ def validate_feed(feed, app):
             parsed.path.startswith(prefix) and parsed.path.endswith(".apk") and
             len(parsed.path[len(prefix):].split("/")) == 2 and not parsed.query and not parsed.fragment,
             "下载地址必须是本仓库的 GitHub Release APK 地址")
-    require(len(json.dumps(feed, ensure_ascii=False).encode("utf-8")) <= MAX_FEED_SIZE,
+    require(len(json.dumps(feed, ensure_ascii=False, indent=2).encode("utf-8")) + 1 <= MAX_FEED_SIZE,
             "更新清单过大")
     return feed
 

@@ -56,6 +56,16 @@ class PublishingSafety(unittest.TestCase):
         validate_feed(empty, APP)
         ensure_forward_update(empty, FEED)
 
+    def test_publisher_matches_client_size_and_version_limits(self):
+        feed = copy.deepcopy(FEED)
+        feed["release"]["apk"]["size"] = 512 * 1024**2 + 1
+        with self.assertRaises(ValueError):
+            validate_feed(feed, APP)
+        feed = copy.deepcopy(FEED)
+        feed["release"]["versionName"] = "x" * 101
+        with self.assertRaises(ValueError):
+            validate_feed(feed, APP)
+
 
 if __name__ == "__main__":
     unittest.main()

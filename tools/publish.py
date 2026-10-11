@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -23,6 +24,12 @@ from protocol import REPOSITORY, MAX_APK_SIZE, MAX_FEED_SIZE, require, validate_
 
 ROOT = Path(__file__).resolve().parents[1]
 API = "https://api.github.com"
+
+
+class NoApiRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, newurl):
+        # A token is authorized for the fixed repository, never a redirected host.
+        return None
 
 
 def run(command, **kwargs):
@@ -64,7 +71,9 @@ class GitHub:
             headers["Content-Type"] = "application/json"
         request = urllib.request.Request(API + path, data=payload, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.build_opener(NoApiRedirect()).open(request, timeout=60) as response:
+                if response.status == 204:
+                    return None
                 return json.load(response)
         except urllib.error.HTTPError as error:
             if error.code == 404 and missing_ok:
@@ -113,20 +122,27 @@ def build_tools(args):
 def inspect_apk(args, app):
     apk = Path(args.apk).resolve()
     require(apk.is_file() and apk.suffix.lower() == ".apk", "请指定已签名 APK 文件")
-    require(0 < apk.stat().st_size <= MAX_APK_SIZE, "APK 必须小于 2 GiB")
+    require(0 < apk.stat().st_size <= MAX_APK_SIZE, "APK 不能超过 512 MiB")
     aapt, java, signer = build_tools(args)
-    badging = run([str(aapt), "dump", "badging", str(apk)])
+    # Windows aapt cannot reliably open a Chinese path. Inspect an unchanged
+    # temporary copy with an ASCII filename, keeping the user's APK untouched.
+    with tempfile.TemporaryDirectory(prefix="lispacerelease-apk-") as temporary:
+        inspected = Path(temporary) / "release.apk"
+        shutil.copyfile(apk, inspected)
+        inspected_size = inspected.stat().st_size
+        require(0 < inspected_size <= MAX_APK_SIZE, "APK 不能超过 512 MiB")
+        badging = run([str(aapt), "dump", "badging", str(inspected)])
+        signatures = run([java, "-jar", str(signer), "verify", "--verbose", "--print-certs", str(inspected)])
+        with inspected.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
     package = re.search(r"^package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']*)'", badging, re.MULTILINE)
     minimum = re.search(r"^sdkVersion:'([0-9]+)'", badging, re.MULTILINE)
     require(package and minimum, "不能读取 APK 的包名、版本和最低 Android 版本")
     require(package[1] == app["packageName"], "所选 APK 属于其他软件")
-    signatures = run([java, "-jar", str(signer), "verify", "--verbose", "--print-certs", str(apk)])
     certificates = re.findall(r"Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-fA-F]{64})", signatures)
     require(len(certificates) == 1, "第一版发布工具只支持单签名者 APK")
     certificate = certificates[0].lower()
     require(app.get("signingCertificateSha256") == certificate, "发行证书不匹配；拒绝换签名 APK")
-    with apk.open("rb") as stream:
-        digest = hashlib.file_digest(stream, "sha256").hexdigest()
     notes = Path(args.notes_file).read_text(encoding="utf-8-sig").strip()
     require(notes, "更新说明不能为空")
     tag = app["id"] + "-v" + package[2]
@@ -135,10 +151,27 @@ def inspect_apk(args, app):
     feed = {"schemaVersion": 1, "appId": app["id"], "packageName": app["packageName"],
             "release": {"versionCode": int(package[2]), "versionName": package[3], "minSdk": int(minimum[1]),
                         "publishedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
-                        "notes": notes, "apk": {"url": url, "size": apk.stat().st_size,
+                        "notes": notes, "apk": {"url": url, "size": inspected_size,
                                                 "sha256": digest, "certificateSha256": certificate}}}
     validate_feed(feed, app)
     return apk, feed, tag, asset_name
+
+
+def find_release(api, base, tag):
+    published = api.request("GET", f"{base}/releases/tags/{tag}", missing_ok=True)
+    if published:
+        return published
+    # The by-tag endpoint excludes drafts before their Git tag is created.
+    # Listing authenticated releases lets a retry recover the same draft.
+    for page in range(1, 11):
+        releases = api.request("GET", f"{base}/releases?per_page=100&page={page}")
+        matching = [item for item in releases if item.get("tag_name") == tag]
+        require(len(matching) <= 1, "发现相同版本的多个草稿，请先人工检查")
+        if matching:
+            return matching[0]
+        if len(releases) < 100:
+            return None
+    raise ValueError("发行记录过多，不能可靠排除重复草稿；停止创建新 Release")
 
 
 def promote(api, app, apk, feed, tag, asset_name):
@@ -151,7 +184,7 @@ def promote(api, app, apk, feed, tag, asset_name):
         require(len(current_bytes) <= MAX_FEED_SIZE, "现有清单过大")
         current = validate_feed(json.loads(current_bytes), app)
     ensure_forward_update(current, feed)
-    release = api.request("GET", f"{base}/releases/tags/{tag}", missing_ok=True)
+    release = find_release(api, base, tag)
     if not release:
         release = api.request("POST", f"{base}/releases", {
             "tag_name": tag, "target_commitish": "main", "name": f"{app['name']} {feed['release']['versionName']} ({feed['release']['versionCode']})",
@@ -159,6 +192,11 @@ def promote(api, app, apk, feed, tag, asset_name):
             "prerelease": bool(re.search(r"alpha|beta|test|\brc", feed["release"]["versionName"], re.IGNORECASE)),
             "make_latest": "false"})
     asset = next((item for item in release.get("assets", []) if item["name"] == asset_name), None)
+    if asset and release["draft"] and asset.get("state") == "starter":
+        # GitHub can leave this zero-byte placeholder after an interrupted upload.
+        # Only the failed attachment in our own generated draft may be cleared.
+        api.request("DELETE", f"{base}/releases/assets/{asset['id']}")
+        asset = None
     if asset:
         require(asset.get("size") == feed["release"]["apk"]["size"] and
                 asset.get("digest") == "sha256:" + feed["release"]["apk"]["sha256"],
@@ -166,14 +204,20 @@ def promote(api, app, apk, feed, tag, asset_name):
     else:
         require(release["draft"], "现有已公开 Release 缺少预期 APK；请人工检查，不自动修改历史发布")
         asset = api.upload(release["upload_url"], apk, asset_name)
-    require(asset.get("state") == "uploaded" and asset.get("size") == feed["release"]["apk"]["size"] and
-            asset.get("digest") == "sha256:" + feed["release"]["apk"]["sha256"] and
-            asset.get("browser_download_url") == feed["release"]["apk"]["url"], "GitHub 附件校验失败")
+    require(asset.get("state") == "uploaded" and asset.get("name") == asset_name and
+            asset.get("size") == feed["release"]["apk"]["size"] and
+            asset.get("digest") == "sha256:" + feed["release"]["apk"]["sha256"], "GitHub 附件校验失败")
     if release["draft"]:
         release = api.request("PATCH", f"{base}/releases/{release['id']}", {"draft": False, "make_latest": "false"})
+    final_asset = next((item for item in release.get("assets", []) if item["name"] == asset_name), None)
+    if not final_asset:
+        final_asset = api.request("GET", f"{base}/releases/assets/{asset['id']}")
+    require(final_asset.get("browser_download_url") == feed["release"]["apk"]["url"],
+            "公开后附件地址不符合预期，未更新清单")
     feed["release"]["publishedAt"] = release["published_at"]
     validate_feed(feed, app)
     data = json.dumps(feed, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    require(len(data) <= MAX_FEED_SIZE, "更新清单过大，未更新远端清单")
     if current == feed:
         print("Release 和更新清单均已发布，无需重复修改。")
     else:
@@ -182,8 +226,21 @@ def promote(api, app, apk, feed, tag, asset_name):
         if content:
             update["sha"] = content["sha"]
         api.request("PUT", path, update)
-    local_feed = ROOT / "updates" / (app["id"] + ".json")
-    local_feed.write_bytes(data)
+    # Keep a receipt outside tracked feeds. API publication adds remote commits;
+    # a dirty tracked feed would otherwise prevent the publisher from pulling.
+    local_feed = ROOT / "out" / "published" / (app["id"] + ".json")
+    local_feed.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=local_feed.parent, prefix="." + app["id"] + "-", suffix=".tmp", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, local_feed)
+    finally:
+        if temporary and temporary.exists():
+            temporary.unlink()
     print("已发布：" + release["html_url"])
     print(f"更新源：https://raw.githubusercontent.com/{REPOSITORY}/main/updates/{app['id']}.json")
 
@@ -212,6 +269,8 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     try:
         main()
     except (ValueError, OSError, subprocess.TimeoutExpired) as error:
