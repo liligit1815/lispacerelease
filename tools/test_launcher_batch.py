@@ -16,8 +16,9 @@ spec.loader.exec_module(batch)
 def fixture():
     codes = (260029, 250001)
     tag = f"stacked-desktop-redmagic10-batch-11-{codes[0]}-10-{codes[1]}"
-    names = (f"堆叠桌面11-{codes[0]}.apk", f"堆叠桌面10-{codes[1]}.apk",
+    names = (f"11-{codes[0]}.apk", f"10-{codes[1]}.apk",
              f"stacked-desktop-redmagic10-{codes[1]}.apk")
+    labels = (f"堆叠桌面11-{codes[0]}.apk", f"堆叠桌面10-{codes[1]}.apk", None)
     apps, feeds = [], []
     for index, identity in enumerate(batch.IDS):
         app = {"id": identity, "name": identity, "packageName": "com.zte.mifavor.launcher",
@@ -28,9 +29,9 @@ def fixture():
             "publishedAt": "2026-10-14T00:00:00Z", "notes": batch.notes_for(*codes),
             "apk": {"url": batch.asset_url(tag, names[0 if index == 0 else 2]), "size": 1024 * (index + 1),
                     "sha256": ("a" if index == 0 else "b") * 64, "certificateSha256": batch.CERTIFICATE}}})
-    assets = [{"name": name, "apk": Path(f"unused{index}.apk"),
+    assets = [{"name": name, "label": label, "apk": Path(f"unused{index}.apk"),
                "size": feeds[index]["release"]["apk"]["size"], "sha256": feeds[index]["release"]["apk"]["sha256"]}
-              for name, index in zip(names, (0, 1, 1))]
+              for name, label, index in zip(names, labels, (0, 1, 1))]
     return {"apps": apps, "feeds": feeds, "assets": assets, "tag": tag, "notes": batch.notes_for(*codes)}
 
 
@@ -52,6 +53,8 @@ class FakeGitHub:
         self.assets = []
         self.fail_upload = None
         self.corrupt_upload = None
+        self.fail_label = None
+        self.label_result_fault = None
         self.race = None
         self.raced = False
 
@@ -95,6 +98,17 @@ class FakeGitHub:
             return deepcopy(self.assets)
         if method == "GET" and path.endswith("/releases/7"):
             return deepcopy(self.release)
+        if method == "PATCH" and "/releases/assets/" in path:
+            asset = next(item for item in self.assets if str(item["id"]) == path.rsplit("/", 1)[-1])
+            if asset["name"] == self.fail_label:
+                raise batch.RemoteFailure(503)
+            if not self.release["draft"] or data["name"] != asset["name"]:
+                raise AssertionError("cannot mutate public asset or canonical name")
+            asset.update(data)
+            result = deepcopy(asset)
+            if self.label_result_fault:
+                result.update(self.label_result_fault)
+            return result
         if method == "PATCH" and path.endswith("/releases/7"):
             self.release.update(data)
             self.release["published_at"] = "2026-10-14T08:00:00Z"
@@ -138,7 +152,9 @@ class FakeGitHub:
         if name == self.fail_upload:
             raise ConnectionResetError("interrupted")
         expected = next(item for item in self.plan["assets"] if item["name"] == name)
-        asset = {"id": len(self.assets) + 10, "name": name, "state": "uploaded", "size": expected["size"],
+        # Match the real platform's removal of Chinese filename characters.
+        sanitized_name = "".join(character for character in name if character.isascii())
+        asset = {"id": len(self.assets) + 10, "name": sanitized_name, "label": None, "state": "uploaded", "size": expected["size"],
                  "digest": "sha256:" + expected["sha256"], "browser_download_url": batch.asset_url(self.plan["tag"], name)}
         if name == self.corrupt_upload:
             asset["digest"] = "sha256:" + "c" * 64
@@ -153,7 +169,8 @@ class BatchPublicationTests(unittest.TestCase):
 
     def assert_no_promotion(self):
         self.assertEqual(self.api.files(), self.api.initial)
-        self.assertFalse(any(method == "PATCH" for method, _, _ in self.api.events))
+        self.assertFalse(any(method == "PATCH" and (path.endswith("/releases/7") or
+                            path.endswith("/git/refs/heads/main")) for method, path, _ in self.api.events))
 
     def test_three_confirmed_assets_then_one_commit_for_exactly_two_feeds(self):
         result = batch.promote_batch(self.api, self.plan)
@@ -169,6 +186,63 @@ class BatchPublicationTests(unittest.TestCase):
             written = json.loads(self.api.files()[f"updates/{identity}.json"])
             self.assertEqual(written["release"]["publishedAt"], self.api.release["published_at"])
             self.assertEqual(written["release"]["apk"]["url"], self.plan["feeds"][index]["release"]["apk"]["url"])
+
+    def test_ascii_download_names_preserve_chinese_labels_and_notes(self):
+        batch.promote_batch(self.api, self.plan)
+        self.assertEqual([asset["name"] for asset in self.api.assets],
+                         ["11-260029.apk", "10-250001.apk", "stacked-desktop-redmagic10-250001.apk"])
+        self.assertEqual([asset["label"] for asset in self.api.assets[:2]],
+                         ["堆叠桌面11-260029.apk", "堆叠桌面10-250001.apk"])
+        self.assertTrue(all(path.isascii() for method, path, _ in self.api.events if method == "UPLOAD"))
+        self.assertEqual(self.api.release["body"], "红魔11系列安装堆叠桌面11-260029.apk\n"
+                         "红魔10系列安装堆叠桌面10-250001.apk\n其它机型自测。")
+        feed11 = json.loads(self.api.files()[f"updates/{batch.IDS[0]}.json"])
+        self.assertTrue(feed11["release"]["apk"]["url"].endswith("/11-260029.apk"))
+
+    def test_failed_label_write_keeps_draft_and_retry_reuses_uploaded_asset(self):
+        self.api.fail_label = self.plan["assets"][0]["name"]
+        with self.assertRaises(batch.RemoteFailure):
+            batch.promote_batch(self.api, self.plan)
+        self.assert_no_promotion()
+        self.assertTrue(self.api.release["draft"])
+        asset_id = self.api.assets[0]["id"]
+        self.api.fail_label = None
+        batch.promote_batch(self.api, self.plan)
+        self.assertEqual(self.api.assets[0]["id"], asset_id)
+        self.assertEqual(sum(method == "UPLOAD" and path == "11-260029.apk"
+                             for method, path, _ in self.api.events), 1)
+
+    def test_label_write_response_must_preserve_all_asset_identity_fields(self):
+        for fault in ({"id": 999}, {"name": "other.apk"}, {"size": 99},
+                      {"digest": "sha256:" + "f" * 64}, {"label": "other"}):
+            with self.subTest(fault=fault):
+                self.api = FakeGitHub(self.plan)
+                self.api.label_result_fault = fault
+                with self.assertRaises(ValueError):
+                    batch.promote_batch(self.api, self.plan)
+                self.assert_no_promotion()
+                self.assertTrue(self.api.release["draft"])
+
+    def test_public_asset_label_is_never_modified(self):
+        batch.promote_batch(self.api, self.plan)
+        self.api.assets[0]["label"] = "unexpected label"
+        self.api.events = []
+        with self.assertRaisesRegex(ValueError, "不修改已公开附件"):
+            batch.promote_batch(self.api, self.plan)
+        self.assertEqual(self.api.assets[0]["label"], "unexpected label")
+        self.assertTrue(all(method == "GET" for method, _, _ in self.api.events))
+
+    def test_label_write_rechecks_draft_immediately_before_mutation(self):
+        original_request = self.api.request
+        def externally_published(method, path, data=None, missing_ok=False):
+            if method == "GET" and path.endswith("/releases/7"):
+                self.api.release["draft"] = False
+                self.api.release["published_at"] = "2026-10-14T08:00:00Z"
+            return original_request(method, path, data, missing_ok)
+        with patch.object(self.api, "request", side_effect=externally_published):
+            with self.assertRaisesRegex(ValueError, "已公开"):
+                batch.promote_batch(self.api, self.plan)
+        self.assert_no_promotion()
 
     def test_second_or_third_upload_failure_keeps_draft_and_feeds(self):
         for index in (1, 2):
@@ -265,7 +339,7 @@ class BatchPublicationTests(unittest.TestCase):
         self.assertTrue(all(method == "GET" for method, _, _ in self.api.events))
 
     def test_encoded_url_identity_and_wrong_paths(self):
-        name = self.plan["assets"][0]["name"]
+        name = "堆叠桌面11-260029.apk"
         encoded = batch.asset_url(self.plan["tag"], name)
         self.assertTrue(batch.matching_asset_url(encoded, self.plan["tag"], name))
         self.assertTrue(batch.matching_asset_url(urllib_unquote(encoded), self.plan["tag"], name))

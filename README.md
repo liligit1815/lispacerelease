@@ -41,7 +41,7 @@ python tools/publish.py --app redmagic-duo --apk "新版.apk" --notes-file "更�
 
 ### 两个系列桌面同批次发布
 
-使用 `tools/publish-launcher-batch.py` 检查两个系列的最终签名APK并生成精确更新说明。它在同一Release上传 `堆叠桌面11-<内部号>.apk` 和 `堆叠桌面10-<内部号>.apk`，另保留与中文10附件逐字节相同的 `stacked-desktop-redmagic10-<内部号>.apk`，供已有10客户端在线下载。11清单指向中文11附件，10清单指向兼容附件；包名相同不改变各自软件标识、版本、哈希及系列校验。
+使用 `tools/publish-launcher-batch.py` 检查两个系列的最终签名APK并生成精确更新说明。它在同一Release提供显示标签为 `堆叠桌面11-<内部号>.apk` 和 `堆叠桌面10-<内部号>.apk` 的附件。GitHub过滤文件名中的中文，实际下载名为 `11-<内部号>.apk`、`10-<内部号>.apk`；工具核对实际名称并设置完整中文显示标签。另保留与手动10附件逐字节相同的 `stacked-desktop-redmagic10-<内部号>.apk`，供已有10客户端在线下载。11清单指向实际11附件地址，10清单指向兼容附件；包名相同不改变各自软件标识、版本、哈希及系列校验。
 
 ```powershell
 python tools/publish-launcher-batch.py --apk11 "红魔11最终签名.apk" --apk10 "红魔10最终签名.apk" `

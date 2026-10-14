@@ -201,8 +201,10 @@ def preflight(args, temporary):
         verify_family(root, gate, apk, feed, 11 if index == 0 else 10)
         paths.append(apk)
         feeds.append(feed)
-    names = [f"堆叠桌面11-{code11}.apk", f"堆叠桌面10-{code10}.apk",
+    # GitHub strips Chinese characters from asset names, but retains labels.
+    names = [f"11-{code11}.apk", f"10-{code10}.apk",
              f"stacked-desktop-redmagic10-{code10}.apk"]
+    labels = [f"堆叠桌面11-{code11}.apk", f"堆叠桌面10-{code10}.apk", None]
     feeds[0]["release"]["apk"]["url"] = asset_url(tag, names[0])
     feeds[1]["release"]["apk"]["url"] = asset_url(tag, names[2])
     feeds[1]["release"]["publishedAt"] = feeds[0]["release"]["publishedAt"]
@@ -213,9 +215,9 @@ def preflight(args, temporary):
         local = ROOT / "updates" / (app["id"] + ".json")
         current = validate_feed(json.loads(local.read_text(encoding="utf-8-sig")), app) if local.exists() else None
         ensure_forward_update(current, feed)
-    assets = [{"name": name, "apk": paths[index], "size": feeds[index]["release"]["apk"]["size"],
+    assets = [{"name": name, "label": label, "apk": paths[index], "size": feeds[index]["release"]["apk"]["size"],
                "sha256": feeds[index]["release"]["apk"]["sha256"]}
-              for name, index in zip(names, (0, 1, 1))]
+              for name, label, index in zip(names, labels, (0, 1, 1))]
     return {"apps": apps, "feeds": feeds, "tag": tag, "notes": notes, "assets": assets}
 
 
@@ -260,13 +262,32 @@ def list_assets(api, release):
     raise ValueError("附件过多，不能可靠核验此批次")
 
 
-def check_asset(asset, expected, tag=None):
-    require(asset.get("state") == "uploaded" and asset.get("name") == expected["name"] and
+def check_asset(asset, expected, tag=None, *, check_label=True):
+    require(type(asset.get("id")) is int and asset["id"] > 0 and
+            asset.get("state") == "uploaded" and asset.get("name") == expected["name"] and
             asset.get("size") == expected["size"] and asset.get("digest") == "sha256:" + expected["sha256"],
             "GitHub 附件状态、大小或哈希与已核验 APK 不符")
+    if check_label and expected.get("label") is not None:
+        require(asset.get("label") == expected["label"], "GitHub 附件中文显示标签不符；不修改已公开附件")
     if tag is not None:
         require(matching_asset_url(asset.get("browser_download_url"), tag, expected["name"]),
                 "公开附件下载地址不是预期仓库、标签和名称")
+
+
+def draft_asset_label(api, release, asset, expected, plan):
+    check_asset(asset, expected, check_label=False)
+    if expected.get("label") is not None and asset.get("label") != expected["label"]:
+        current = api.request("GET", BASE + f"/releases/{release['id']}")
+        validate_release(current, plan)
+        require(current["id"] == release["id"] and current["draft"],
+                "Release 已公开；保留附件，不自动修改中文显示标签")
+        changed = api.request("PATCH", BASE + f"/releases/assets/{asset['id']}",
+                              {"name": expected["name"], "label": expected["label"]})
+        require(changed.get("id") == asset["id"], "标签写入返回了其他附件身份")
+        check_asset(changed, expected)
+        return changed
+    check_asset(asset, expected)
+    return asset
 
 
 def verified_assets(api, release, plan, *, public=False):
@@ -282,7 +303,8 @@ def publish_assets(api, plan):
     release = publish.find_release(api, BASE, plan["tag"])
     if release is None:
         release = api.request("POST", BASE + "/releases", {
-            "tag_name": plan["tag"], "target_commitish": "main", "name": plan["tag"],
+            "tag_name": plan["tag"], "target_commitish": "main",
+            "name": f"堆叠桌面11 / 10（{plan['feeds'][0]['release']['versionCode']} / {plan['feeds'][1]['release']['versionCode']}）",
             "body": plan["notes"], "draft": True, "prerelease": False, "make_latest": "false"})
     validate_release(release, plan)
     if release["draft"]:
@@ -300,7 +322,7 @@ def publish_assets(api, plan):
                     "草稿存在未完成附件；保留原附件，检查后重试，不自动删除可能已公开的附件")
             if asset is None:
                 asset = api.upload(release["upload_url"], expected["apk"], expected["name"])
-            check_asset(asset, expected)
+            draft_asset_label(api, release, asset, expected, plan)
         # Re-read all remote metadata immediately before making the draft public.
         release = api.request("GET", BASE + f"/releases/{release['id']}")
         validate_release(release, plan)
