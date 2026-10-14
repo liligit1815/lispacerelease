@@ -2,5 +2,17 @@
   "schemaVersion": 1,
   "appId": "stacked-desktop-redmagic10",
   "packageName": "com.zte.mifavor.launcher",
-  "release": null
+  "release": {
+    "versionCode": 250001,
+    "versionName": "25.5.000.000.2505121541",
+    "minSdk": 31,
+    "publishedAt": "2026-10-14T08:32:51Z",
+    "notes": "红魔11系列安装堆叠桌面11-260029.apk\n红魔10系列安装堆叠桌面10-250001.apk\n其它机型自测。",
+    "apk": {
+      "url": "https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260029-10-250001/stacked-desktop-redmagic10-250001.apk",
+      "size": 30257447,
+      "sha256": "5ad9a171e8176f3ad19971f205889bb1512ccc99ff69422f85778f205d196d8a",
+      "certificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"
+    }
+  }
 }
