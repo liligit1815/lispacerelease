@@ -3,7 +3,8 @@
   "repository": "liligit1815/lispacerelease",
   "apps": [
     {"id": "redmagic-duo", "name": "红魔 Duo", "packageName": "ls.augment.com", "signingCertificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"},
-    {"id": "stacked-desktop", "name": "堆叠桌面", "packageName": "com.zte.mifavor.launcher", "signingCertificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"},
+    {"id": "stacked-desktop", "name": "堆叠桌面11", "packageName": "com.zte.mifavor.launcher", "signingCertificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"},
+    {"id": "stacked-desktop-redmagic10", "name": "堆叠桌面10", "packageName": "com.zte.mifavor.launcher", "signingCertificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"},
     {"id": "iqoo-shoulder", "name": "iQOO 肩键扩展", "packageName": "ls.iqooaugment.com", "signingCertificateSha256": "7181eae8b831a960d040f9f5c00b656f08849b080751772e81c66c37d01224f2"}
   ]
 }
