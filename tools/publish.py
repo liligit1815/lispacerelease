@@ -139,6 +139,9 @@ def inspect_apk(args, app):
     minimum = re.search(r"^sdkVersion:'([0-9]+)'", badging, re.MULTILINE)
     require(package and minimum, "不能读取 APK 的包名、版本和最低 Android 版本")
     require(package[1] == app["packageName"], "所选 APK 属于其他软件")
+    if "targetSdk" in app:
+        target = re.search(r"^targetSdkVersion:'([0-9]+)'", badging, re.MULTILINE)
+        require(target and int(target[1]) == app["targetSdk"], "APK 的目标 SDK 与所选桌面系列不匹配")
     certificates = re.findall(r"Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-fA-F]{64})", signatures)
     require(len(certificates) == 1, "第一版发布工具只支持单签名者 APK")
     certificate = certificates[0].lower()
@@ -146,7 +149,10 @@ def inspect_apk(args, app):
     notes = Path(args.notes_file).read_text(encoding="utf-8-sig").strip()
     require(notes, "更新说明不能为空")
     tag = app["id"] + "-v" + package[2]
-    asset_name = app["id"] + "-" + package[2] + ".apk"
+    prefix = app.get("assetPrefix", app["id"])
+    require(isinstance(prefix, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", prefix),
+            "附件名称前缀无效")
+    asset_name = prefix + "-" + package[2] + ".apk"
     url = f"https://github.com/{REPOSITORY}/releases/download/{tag}/{asset_name}"
     feed = {"schemaVersion": 1, "appId": app["id"], "packageName": app["packageName"],
             "release": {"versionCode": int(package[2]), "versionName": package[3], "minSdk": int(minimum[1]),

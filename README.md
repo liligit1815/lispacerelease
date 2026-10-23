@@ -1,6 +1,6 @@
 # LiSpace 软件发布与在线更新
 
-红魔Duo、红魔11和红魔10堆叠桌面、iQOO肩键扩展的APK发布中心。各软件通过独立更新清单检查新版；两个系列桌面可在同一批次Release提供各自安装包，源码分别维护在独立分支。
+红魔Duo、红魔12、红魔11和红魔10堆叠桌面、iQOO肩键扩展的APK发布中心。各软件通过独立更新清单检查新版；各系列桌面分别提供对应安装包，源码分别维护在独立分支。
 
 ## 下载
 
@@ -11,6 +11,7 @@
 | 红魔 Duo | `redmagic-duo` | [redmagic-duo.json](https://raw.githubusercontent.com/liligit1815/lispacerelease/main/updates/redmagic-duo.json) |
 | 堆叠桌面11 | `stacked-desktop` | [stacked-desktop.json](https://raw.githubusercontent.com/liligit1815/lispacerelease/main/updates/stacked-desktop.json) |
 | 堆叠桌面10 | `stacked-desktop-redmagic10` | [stacked-desktop-redmagic10.json](https://raw.githubusercontent.com/liligit1815/lispacerelease/main/updates/stacked-desktop-redmagic10.json) |
+| 堆叠桌面12 | `stacked-desktop-redmagic12` | [stacked-desktop-redmagic12.json](https://raw.githubusercontent.com/liligit1815/lispacerelease/main/updates/stacked-desktop-redmagic12.json) |
 | iQOO 肩键扩展 | `iqoo-shoulder` | [iqoo-shoulder.json](https://raw.githubusercontent.com/liligit1815/lispacerelease/main/updates/iqoo-shoulder.json) |
 
 ## 在软件内更新
@@ -31,7 +32,7 @@
 python tools/publish.py --app redmagic-duo --apk "新版.apk" --notes-file "更新说明.md" --sdk "Android SDK路径" --java-home "JDK路径" --dry-run
 ```
 
-`--dry-run` 检查 APK 并显示发布计划，检查通过后去掉该参数进行发布。其他软件将 `--app` 改为 `stacked-desktop` 或 `iqoo-shoulder`。
+`--dry-run` 检查 APK 并显示发布计划，检查通过后去掉该参数进行发布。其他软件将 `--app` 改为对应软件标识。红魔12使用 `stacked-desktop-redmagic12`，附件名为 `12-<内部版本>.apk`，发行配置核对target SDK37。
 
 发布直接更新 GitHub 上的清单，本地发布记录保存到忽略的 `out/published/`。需要同步本地仓库清单时运行 `git pull --ff-only`；先同步再进行下一次离线预检查。
 
@@ -51,7 +52,17 @@ python tools/publish-launcher-batch.py --apk11 "红魔11最终签名.apk" --apk1
 
 检查通过后以相同参数去掉 `--dry-run`。所有附件完成上传和校验后才公开Release；两个独立清单在同一Git提交中更新，其余软件的清单保持不变。重试复用相同标签和内容，不替换已公开APK。
 
-源码：[红魔11分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/codex/redmagic-11) · [红魔10分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/codex/redmagic-10)。本仓库不保存桌面源码、编译过程文件或私有签名材料。
+源码：[红魔11分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-11) · [红魔10分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-10)。本仓库不保存桌面源码、编译过程文件或私有签名材料。
+
+### 红魔12桌面
+
+新增红魔12桌面支持，请下载 [12-270001版本](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic12-v270001/12-270001.apk)。
+
+```powershell
+python tools/publish.py --app stacked-desktop-redmagic12 --apk "红魔12最终签名.apk" --notes-file "更新说明.md" --sdk "Android SDK目录" --java-home "JDK目录" --dry-run
+```
+
+检查通过后以相同参数去掉 `--dry-run`。12系列的APK及独立清单使用单独Release维护，不更改10或11清单。源码见 [redmagic-12](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-12)。
 
 ## 文件布局
 
