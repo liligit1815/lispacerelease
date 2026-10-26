@@ -18,9 +18,8 @@ spec.loader.exec_module(batch)
 def fixture():
     codes = (260029, 250001)
     tag = f"stacked-desktop-redmagic10-batch-11-{codes[0]}-10-{codes[1]}"
-    names = (f"11-{codes[0]}.apk", f"10-{codes[1]}.apk",
-             f"stacked-desktop-redmagic10-{codes[1]}.apk")
-    labels = (f"堆叠桌面11-{codes[0]}.apk", f"堆叠桌面10-{codes[1]}.apk", None)
+    names = (f"11-{codes[0]}.apk", f"stacked-desktop-redmagic10-{codes[1]}.apk")
+    labels = (f"堆叠桌面11-{codes[0]}.apk", f"堆叠桌面10-{codes[1]}")
     apps, feeds = [], []
     for index, identity in enumerate(batch.IDS):
         app = {"id": identity, "name": identity, "packageName": "com.zte.mifavor.launcher",
@@ -29,11 +28,11 @@ def fixture():
         feeds.append({"schemaVersion": 1, "appId": identity, "packageName": app["packageName"], "release": {
             "versionCode": codes[index], "versionName": f"display{index}", "minSdk": 31,
             "publishedAt": "2026-10-14T00:00:00Z", "notes": batch.notes_for(*codes),
-            "apk": {"url": batch.asset_url(tag, names[0 if index == 0 else 2]), "size": 1024 * (index + 1),
+            "apk": {"url": batch.asset_url(tag, names[index]), "size": 1024 * (index + 1),
                     "sha256": ("a" if index == 0 else "b") * 64, "certificateSha256": batch.CERTIFICATE}}})
     assets = [{"name": name, "label": label, "apk": Path(f"unused{index}.apk"),
                "size": feeds[index]["release"]["apk"]["size"], "sha256": feeds[index]["release"]["apk"]["sha256"]}
-              for name, label, index in zip(names, labels, (0, 1, 1))]
+              for name, label, index in zip(names, labels, (0, 1))]
     return {"apps": apps, "feeds": feeds, "assets": assets, "tag": tag, "notes": batch.notes_for(*codes)}
 
 
@@ -224,15 +223,20 @@ class BatchPublicationTests(unittest.TestCase):
             with patch.object(batch, "ROOT", root), patch.object(batch, "load_tool", tool), \
                  patch.object(batch, "verify_family"), patch.object(batch.publish, "inspect_apk", inspect):
                 plan = batch.preflight(SimpleNamespace(**values), work)
-            for asset, expected in zip(plan["assets"], (b"11", b"10", b"10", b"12")):
+            self.assertEqual([a["name"] for a in plan["assets"]],
+                             ["11-260030.apk", "stacked-desktop-redmagic10-250002.apk", "12-270007.apk"])
+            self.assertEqual(plan["assets"][1]["label"], "堆叠桌面10-250002")
+            for asset, expected in zip(plan["assets"], (b"11", b"10", b"12")):
                 self.assertEqual(asset["apk"].read_bytes(), expected, "another series overwrote the upload snapshot")
                 self.assertEqual(hashlib.sha256(asset["apk"].read_bytes()).hexdigest(), asset["sha256"])
             self.assertEqual(len({a["apk"] for a in plan["assets"]}), 3)
+            self.assertEqual({f["release"]["apk"]["url"] for f in plan["feeds"]},
+                             {batch.asset_url(plan["tag"], a["name"]) for a in plan["assets"]})
 
     def test_three_series_keep_compatibility_asset_and_promote_all_feeds_together(self):
         plan, api = self.triple()
         batch.promote_batch(api, plan)
-        self.assertEqual(len(api.assets), 4)
+        self.assertEqual(len(api.assets), 3)
         self.assertEqual(api.release["body"], plan["notes"])
         self.assertEqual(api.release["name"], plan["title"])
         writes = [data for method,path,data in api.events if method=="POST" and path.endswith("/git/trees")]
@@ -244,7 +248,10 @@ class BatchPublicationTests(unittest.TestCase):
         previous = api.head
         batch.promote_batch(api, plan)
         self.assertEqual(api.head, previous)
-        self.assertEqual(sum(m=="UPLOAD" for m,_,_ in api.events), 4)
+        self.assertEqual(sum(m=="UPLOAD" for m,_,_ in api.events), 3)
+        api.events = []
+        batch.promote_batch(api, plan)
+        self.assertTrue(all(method == "GET" for method, _, _ in api.events))
 
     def test_failed_third_series_keeps_every_feed_and_retry_reuses_prior_assets(self):
         plan, api = self.triple();api.fail_upload = "12-270007.apk"
@@ -256,10 +263,10 @@ class BatchPublicationTests(unittest.TestCase):
         self.assertFalse(api.release["draft"])
         self.assertEqual(sum(m=="UPLOAD" and p=="11-260029.apk" for m,p,_ in api.events), 1)
 
-    def test_three_confirmed_assets_then_one_commit_for_exactly_two_feeds(self):
+    def test_two_confirmed_assets_then_one_commit_for_exactly_two_feeds(self):
         result = batch.promote_batch(self.api, self.plan)
         self.assertFalse(self.api.release["draft"])
-        self.assertEqual(len(self.api.assets), 3)
+        self.assertEqual(len(self.api.assets), 2)
         trees = [data for method, path, data in self.api.events if method == "POST" and path.endswith("/git/trees")]
         self.assertEqual(len(trees), 1)
         self.assertEqual({item["path"] for item in trees[0]["tree"]}, {f"updates/{identity}.json" for identity in batch.IDS})
@@ -273,10 +280,9 @@ class BatchPublicationTests(unittest.TestCase):
 
     def test_ascii_download_names_preserve_chinese_labels_and_notes(self):
         batch.promote_batch(self.api, self.plan)
-        self.assertEqual([asset["name"] for asset in self.api.assets],
-                         ["11-260029.apk", "10-250001.apk", "stacked-desktop-redmagic10-250001.apk"])
-        self.assertEqual([asset["label"] for asset in self.api.assets[:2]],
-                         ["堆叠桌面11-260029.apk", "堆叠桌面10-250001.apk"])
+        self.assertEqual({asset["name"]: asset["label"] for asset in self.api.assets},
+                         {"11-260029.apk": "堆叠桌面11-260029.apk",
+                          "stacked-desktop-redmagic10-250001.apk": "堆叠桌面10-250001"})
         self.assertTrue(all(path.isascii() for method, path, _ in self.api.events if method == "UPLOAD"))
         self.assertEqual(self.api.release["body"], "红魔11系列安装堆叠桌面11-260029.apk\n"
                          "红魔10系列安装堆叠桌面10-250001.apk\n其它机型自测。")
@@ -329,6 +335,7 @@ class BatchPublicationTests(unittest.TestCase):
         self.assert_no_promotion()
 
     def test_second_or_third_upload_failure_keeps_draft_and_feeds(self):
+        self.plan, _ = self.triple()
         for index in (1, 2):
             with self.subTest(index=index):
                 self.api = FakeGitHub(self.plan)
@@ -339,6 +346,7 @@ class BatchPublicationTests(unittest.TestCase):
                 self.assert_no_promotion()
 
     def test_retry_reuses_completed_draft_assets(self):
+        self.plan, self.api = self.triple()
         self.api.fail_upload = self.plan["assets"][2]["name"]
         with self.assertRaises(ConnectionResetError):
             batch.promote_batch(self.api, self.plan)

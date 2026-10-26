@@ -219,18 +219,18 @@ def preflight(args, temporary):
         verify_family(root, gate, apk, feed, series_list[index])
         paths.append(apk)
         feeds.append(feed)
-    # GitHub strips Chinese characters from asset names, but retains labels.
-    names = [f"11-{code11}.apk", f"10-{code10}.apk",
-             f"stacked-desktop-redmagic10-{code10}.apk"]
-    labels = [f"堆叠桌面11-{code11}.apk", f"堆叠桌面10-{code10}.apk", None]
+    # One asset per series. The 10 client requires its canonical ASCII prefix;
+    # a Chinese label also makes that same asset the manual download entry.
+    names = [f"11-{code11}.apk", f"stacked-desktop-redmagic10-{code10}.apk"]
+    labels = [f"堆叠桌面11-{code11}.apk", f"堆叠桌面10-{code10}"]
     feeds[0]["release"]["apk"]["url"] = asset_url(tag, names[0])
-    feeds[1]["release"]["apk"]["url"] = asset_url(tag, names[2])
-    indices = [0, 1, 1]
+    feeds[1]["release"]["apk"]["url"] = asset_url(tag, names[1])
+    indices = [0, 1]
     if include12:
         names.append(f"12-{code12}.apk")
         labels.append(f"堆叠桌面12-{code12}.apk")
         indices.append(2)
-        feeds[2]["release"]["apk"]["url"] = asset_url(tag, names[3])
+        feeds[2]["release"]["apk"]["url"] = asset_url(tag, names[2])
     for feed in feeds[1:]:
         feed["release"]["publishedAt"] = feeds[0]["release"]["publishedAt"]
     for root, app, feed in zip(roots, apps, feeds):
