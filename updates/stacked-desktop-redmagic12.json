@@ -3,15 +3,15 @@
   "appId": "stacked-desktop-redmagic12",
   "packageName": "com.zte.mifavor.launcher",
   "release": {
-    "versionCode": 270001,
+    "versionCode": 270002,
     "versionName": "27.0.000.000.2609231706",
     "minSdk": 31,
-    "publishedAt": "2026-10-23T09:54:29Z",
-    "notes": "新增红魔12桌面支持，请下载12-270001版本。",
+    "publishedAt": "2026-10-26T03:30:18Z",
+    "notes": "修复红魔12桌面启动相关的字节码错误，修正任务菜单回调和手势动画参数处理，请下载12-270002版本。",
     "apk": {
-      "url": "https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic12-v270001/12-270001.apk",
+      "url": "https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic12-v270002/12-270002.apk",
       "size": 50056827,
-      "sha256": "a7526a17f46945aaee2de5d9b6257b19e864ea99e7edd3f55547d93e8f2ea6c5",
+      "sha256": "4a72e3d73fda57048015335e38777cc47b0f471725c087f98fa46541e4bd3250",
       "certificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"
     }
   }
