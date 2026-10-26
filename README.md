@@ -56,7 +56,7 @@ python tools/publish-launcher-batch.py --apk11 "红魔11最终签名.apk" --apk1
 
 ### 红魔12桌面
 
-新增红魔12桌面支持，请下载 [12-270001版本](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic12-v270001/12-270001.apk)。
+红魔12 Pro+请下载 [12-270007版本](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic12-v270007/12-270007.apk)。本版修复点击最近任务卡片的偏移与突跳动画、长按偶发只震动或松手后才显示菜单的问题，新增堆叠样式首尾卡片阻尼回弹，包含上滑删除动画修复及跟随系统设置的长按振动反馈。
 
 ```powershell
 python tools/publish.py --app stacked-desktop-redmagic12 --apk "红魔12最终签名.apk" --notes-file "更新说明.md" --sdk "Android SDK目录" --java-home "JDK目录" --dry-run
