@@ -19,7 +19,7 @@ def fixture():
     codes = (260029, 250001)
     tag = f"stacked-desktop-redmagic10-batch-11-{codes[0]}-10-{codes[1]}"
     names = (f"11-{codes[0]}.apk", f"stacked-desktop-redmagic10-{codes[1]}.apk")
-    labels = (f"堆叠桌面11-{codes[0]}.apk", f"堆叠桌面10-{codes[1]}")
+    labels = (f"堆叠桌面11-{codes[0]}.apk", f"堆叠桌面10-{codes[1]}.APK")
     apps, feeds = [], []
     for index, identity in enumerate(batch.IDS):
         app = {"id": identity, "name": identity, "packageName": "com.zte.mifavor.launcher",
@@ -225,7 +225,7 @@ class BatchPublicationTests(unittest.TestCase):
                 plan = batch.preflight(SimpleNamespace(**values), work)
             self.assertEqual([a["name"] for a in plan["assets"]],
                              ["11-260030.apk", "stacked-desktop-redmagic10-250002.apk", "12-270007.apk"])
-            self.assertEqual(plan["assets"][1]["label"], "堆叠桌面10-250002")
+            self.assertEqual(plan["assets"][1]["label"], "堆叠桌面10-250002.APK")
             for asset, expected in zip(plan["assets"], (b"11", b"10", b"12")):
                 self.assertEqual(asset["apk"].read_bytes(), expected, "another series overwrote the upload snapshot")
                 self.assertEqual(hashlib.sha256(asset["apk"].read_bytes()).hexdigest(), asset["sha256"])
@@ -282,7 +282,7 @@ class BatchPublicationTests(unittest.TestCase):
         batch.promote_batch(self.api, self.plan)
         self.assertEqual({asset["name"]: asset["label"] for asset in self.api.assets},
                          {"11-260029.apk": "堆叠桌面11-260029.apk",
-                          "stacked-desktop-redmagic10-250001.apk": "堆叠桌面10-250001"})
+                          "stacked-desktop-redmagic10-250001.apk": "堆叠桌面10-250001.APK"})
         self.assertTrue(all(path.isascii() for method, path, _ in self.api.events if method == "UPLOAD"))
         self.assertEqual(self.api.release["body"], "红魔11系列安装堆叠桌面11-260029.apk\n"
                          "红魔10系列安装堆叠桌面10-250001.apk\n其它机型自测。")
