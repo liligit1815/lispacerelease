@@ -222,7 +222,7 @@ def preflight(args, temporary):
     # One asset per series. The 10 client requires its canonical ASCII prefix;
     # a Chinese label also makes that same asset the manual download entry.
     names = [f"11-{code11}.apk", f"stacked-desktop-redmagic10-{code10}.apk"]
-    labels = [f"堆叠桌面11-{code11}.apk", f"堆叠桌面10-{code10}.APK"]
+    labels = [f"堆叠桌面11-{code11}.apk", f"堆叠桌面10-{code10}.apk"]
     feeds[0]["release"]["apk"]["url"] = asset_url(tag, names[0])
     feeds[1]["release"]["apk"]["url"] = asset_url(tag, names[1])
     indices = [0, 1]

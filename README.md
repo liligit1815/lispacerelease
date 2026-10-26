@@ -44,7 +44,7 @@ python tools/publish.py --app redmagic-duo --apk "新版.apk" --notes-file "更�
 
 [本批次发行](https://github.com/liligit1815/lispacerelease/releases/tag/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007)
 
-10.x.x系统请安装[堆叠桌面10-250002.APK](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/stacked-desktop-redmagic10-250002.apk)
+10.x.x系统请安装[堆叠桌面10-250002.apk](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/stacked-desktop-redmagic10-250002.apk)
 
 11.x.x系统请安装[堆叠桌面11-260030](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/11-260030.apk)
 
@@ -56,7 +56,7 @@ python tools/publish.py --app redmagic-duo --apk "新版.apk" --notes-file "更�
 2. 新增边界动画回弹效果
 3. 优化动画效果和流畅性
 
-使用 `tools/publish-launcher-batch.py` 核验三个系列的最终签名APK，并通过 `--notes-file` 指定本次更新内容与下载说明。每个系列只发布一个附件。红魔10显示为 `堆叠桌面10-<内部号>.APK`，实际文件名保留 `stacked-desktop-redmagic10-<内部号>.apk`，供手动下载和已有客户端在线更新共同使用；11、12系列实际文件名分别为 `11-<内部号>.apk`、`12-<内部号>.apk`。三个独立清单分别绑定本系列附件、版本、大小、SHA-256和签名，不能按包名相同混用。
+使用 `tools/publish-launcher-batch.py` 核验三个系列的最终签名APK，并通过 `--notes-file` 指定本次更新内容与下载说明。每个系列只发布一个附件。红魔10显示为 `堆叠桌面10-<内部号>.apk`，实际文件名保留 `stacked-desktop-redmagic10-<内部号>.apk`，供手动下载和已有客户端在线更新共同使用；11、12系列实际文件名分别为 `11-<内部号>.apk`、`12-<内部号>.apk`。三个独立清单分别绑定本系列附件、版本、大小、SHA-256和签名，不能按包名相同混用。
 
 ```powershell
 python tools/publish-launcher-batch.py --apk10 "红魔10最终签名.apk" --apk11 "红魔11最终签名.apk" --apk12 "红魔12最终签名.apk" `
