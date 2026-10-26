@@ -1,4 +1,4 @@
-"""Publish the reviewed 11/10 launcher pair and atomically promote both feeds.
+"""Publish verified launcher series together and atomically promote their feeds.
 
 Dry-run is local only. Source roots provide identity verification, not build
 dependencies. No launcher source, registry or tracked local feed is modified.
@@ -6,7 +6,9 @@ dependencies. No launcher source, registry or tracked local feed is modified.
 import argparse
 import base64
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import importlib.util
+import hashlib
 import http.client
 import json
 from pathlib import Path
@@ -151,7 +153,7 @@ def verify_family(root, gate, apk, feed, series):
         "versionCode": feed["release"]["versionCode"], "versionName": feed["release"]["versionName"]},
         "已签 APK 版本与该系列实际源码不一致")
     baseline_events, _ = manifest_events(gate, root / "original.apk")
-    platform = 35 if series == 10 else 36
+    platform = {10: 35, 11: 36, 12: 37}[series]
     minimum, target = source_sdk(root)
     require(target == platform and sdk_identity(events) == (minimum, platform, platform) and
             sdk_identity(baseline_events)[1:] == (platform, platform) and
@@ -167,38 +169,54 @@ def verify_family(root, gate, apk, feed, series):
             "namespace": ANDROID, "name": name, "resourceId": rid, "type": 3, "value": value}
             for attr in attributes) for name, rid, value in wanted), "红魔10系列标识类型或值不正确")
     else:
-        require(not metadata, "当前红魔11底包不能带红魔10系列标识")
+        require(not metadata, "该系列底包不能带红魔10系列标识")
 
 
 def preflight(args, temporary):
     registry = json.loads((ROOT / "apps.json").read_text(encoding="utf-8-sig"))
     require(registry.get("repository") == REPOSITORY, "仓库配置不匹配")
+    include12 = bool(getattr(args, "apk12", None) or getattr(args, "launcher12_root", None))
+    require(not include12 or (args.apk12 and args.launcher12_root), "12系列需要同时指定APK与独立源码根目录")
+    identities = IDS + (("stacked-desktop-redmagic12",) if include12 else ())
+    series_list = [11, 10] + ([12] if include12 else [])
     apps = []
-    for identity in IDS:
+    for identity in identities:
         matches = [app for app in registry["apps"] if app["id"] == identity]
-        require(len(matches) == 1, "apps.json 必须登记两个独立桌面更新源")
+        require(len(matches) == 1, "apps.json 必须登记该系列的独立桌面更新源")
         app = matches[0]
         require(app["packageName"] == "com.zte.mifavor.launcher" and
                 app["signingCertificateSha256"] == CERTIFICATE, "桌面登记身份或证书不匹配")
         apps.append(app)
     roots = [Path(args.launcher11_root).resolve(), Path(args.launcher10_root).resolve()]
-    require(roots[0] != roots[1], "两系列必须使用各自独立源码根目录")
+    if include12:
+        roots.append(Path(args.launcher12_root).resolve())
+    require(len(set(roots)) == len(roots), "各系列必须使用各自独立源码根目录")
     gates = [load_tool(root, "check-launcher-stack-only-apk.py") for root in roots]
     versions = [gate.expected_versions(root / "src/apktool.yml") for root, gate in zip(roots, gates)]
-    code11, code10 = [item["versionCode"] for item in versions]
+    code11, code10 = [item["versionCode"] for item in versions[:2]]
     tag = f"stacked-desktop-redmagic10-batch-11-{code11}-10-{code10}"
     notes = notes_for(code11, code10)
+    if include12:
+        code12 = versions[2]["versionCode"]
+        tag += f"-12-{code12}"
+        require(getattr(args, "notes_file", None), "三系列发行须提供本次更新内容和下载说明")
+    if getattr(args, "notes_file", None):
+        notes = Path(args.notes_file).read_text(encoding="utf-8-sig").strip()
+        require(notes and len(notes) <= 12000, "发行说明为空或过长")
+        for series, version in zip(series_list, versions):
+            require(f"堆叠桌面{series}-{version['versionCode']}" in notes, "发行说明缺少该系列实际下载版本")
     notes_file = temporary / "notes.txt"
     notes_file.write_text(notes, encoding="utf-8")
     feeds, paths = [], []
-    for index, (root, gate, app, source) in enumerate(zip(roots, gates, apps, [args.apk11, args.apk10])):
+    sources = [args.apk11, args.apk10] + ([args.apk12] if include12 else [])
+    for index, (root, gate, app, source) in enumerate(zip(roots, gates, apps, sources)):
         source = Path(source).resolve()
         require(source.is_file(), "已签 APK 文件不存在")
-        snapshot = temporary / f"launcher{11 if index == 0 else 10}.apk"
+        snapshot = temporary / f"launcher{series_list[index]}.apk"
         shutil.copyfile(source, snapshot)
         inspect_args = SimpleNamespace(apk=snapshot, notes_file=notes_file, sdk=args.sdk, java_home=args.java_home)
         apk, feed, _, _ = publish.inspect_apk(inspect_args, app)
-        verify_family(root, gate, apk, feed, 11 if index == 0 else 10)
+        verify_family(root, gate, apk, feed, series_list[index])
         paths.append(apk)
         feeds.append(feed)
     # GitHub strips Chinese characters from asset names, but retains labels.
@@ -207,7 +225,14 @@ def preflight(args, temporary):
     labels = [f"堆叠桌面11-{code11}.apk", f"堆叠桌面10-{code10}.apk", None]
     feeds[0]["release"]["apk"]["url"] = asset_url(tag, names[0])
     feeds[1]["release"]["apk"]["url"] = asset_url(tag, names[2])
-    feeds[1]["release"]["publishedAt"] = feeds[0]["release"]["publishedAt"]
+    indices = [0, 1, 1]
+    if include12:
+        names.append(f"12-{code12}.apk")
+        labels.append(f"堆叠桌面12-{code12}.apk")
+        indices.append(2)
+        feeds[2]["release"]["apk"]["url"] = asset_url(tag, names[3])
+    for feed in feeds[1:]:
+        feed["release"]["publishedAt"] = feeds[0]["release"]["publishedAt"]
     for root, app, feed in zip(roots, apps, feeds):
         validate_feed(feed, app)
         client = load_tool(root, "check-launcher-online-release.py")
@@ -217,8 +242,15 @@ def preflight(args, temporary):
         ensure_forward_update(current, feed)
     assets = [{"name": name, "label": label, "apk": paths[index], "size": feeds[index]["release"]["apk"]["size"],
                "sha256": feeds[index]["release"]["apk"]["sha256"]}
-              for name, label, index in zip(names, labels, (0, 1, 1))]
-    return {"apps": apps, "feeds": feeds, "tag": tag, "notes": notes, "assets": assets}
+              for name, label, index in zip(names, labels, indices)]
+    for asset in assets:
+        with asset["apk"].open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        require(asset["apk"].stat().st_size == asset["size"] and digest == asset["sha256"],
+                "上传快照与已核验 APK 不符")
+    title = (f"堆叠桌面 10 / 11 / 12（{code10} / {code11} / {code12}）" if include12
+             else f"堆叠桌面11 / 10（{code11} / {code10}）")
+    return {"apps": apps, "feeds": feeds, "tag": tag, "notes": notes, "assets": assets, "title": title}
 
 
 def head_sha(api):
@@ -247,7 +279,7 @@ def remote_feeds(api, apps, sha):
 def validate_release(release, plan):
     require(type(release.get("id")) is int and release["id"] > 0 and
             type(release.get("draft")) is bool and release.get("tag_name") == plan["tag"], "Release 身份不匹配")
-    require(release.get("body") == plan["notes"], "已有 Release 正文不等于本批次精确三行说明")
+    require(release.get("body") == plan["notes"], "已有 Release 正文不等于本批次发行说明")
     require(not release.get("prerelease"), "本批次不能复用 prerelease")
 
 
@@ -292,8 +324,8 @@ def draft_asset_label(api, release, asset, expected, plan):
 
 def verified_assets(api, release, plan, *, public=False):
     assets = list_assets(api, release)
-    require(len(assets) == 3 and {asset.get("name") for asset in assets} ==
-            {asset["name"] for asset in plan["assets"]}, "本批次必须只有三个唯一预期 APK 附件")
+    require(len(assets) == len(plan["assets"]) and {asset.get("name") for asset in assets} ==
+            {asset["name"] for asset in plan["assets"]}, "本批次必须只有全部唯一预期 APK 附件")
     for expected in plan["assets"]:
         check_asset(next(asset for asset in assets if asset["name"] == expected["name"]),
                     expected, plan["tag"] if public else None)
@@ -304,7 +336,7 @@ def publish_assets(api, plan):
     if release is None:
         release = api.request("POST", BASE + "/releases", {
             "tag_name": plan["tag"], "target_commitish": "main",
-            "name": f"堆叠桌面11 / 10（{plan['feeds'][0]['release']['versionCode']} / {plan['feeds'][1]['release']['versionCode']}）",
+            "name": plan.get("title", f"堆叠桌面11 / 10（{plan['feeds'][0]['release']['versionCode']} / {plan['feeds'][1]['release']['versionCode']}）"),
             "body": plan["notes"], "draft": True, "prerelease": False, "make_latest": "false"})
     validate_release(release, plan)
     if release["draft"]:
@@ -316,12 +348,24 @@ def publish_assets(api, plan):
         require(len({asset.get("name") for asset in assets}) == len(assets) and
                 {asset.get("name") for asset in assets} <= {item["name"] for item in plan["assets"]},
                 "草稿存在重复或非本批次附件，保留原草稿并停止")
+        missing = []
         for expected in plan["assets"]:
             asset = next((item for item in assets if item["name"] == expected["name"]), None)
             require(not asset or asset.get("state") != "starter",
                     "草稿存在未完成附件；保留原附件，检查后重试，不自动删除可能已公开的附件")
             if asset is None:
-                asset = api.upload(release["upload_url"], expected["apk"], expected["name"])
+                missing.append(expected)
+            else:
+                draft_asset_label(api, release, asset, expected, plan)
+        # Distinct immutable attachments may upload together. Keep the draft and
+        # every feed unchanged unless every worker completes and metadata agrees.
+        uploaded = []
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = {pool.submit(api.upload, release["upload_url"], item["apk"], item["name"]): item
+                       for item in missing}
+            for future in as_completed(futures):
+                uploaded.append((futures[future], future.result()))
+        for expected, asset in uploaded:
             draft_asset_label(api, release, asset, expected, plan)
         # Re-read all remote metadata immediately before making the draft public.
         release = api.request("GET", BASE + f"/releases/{release['id']}")
@@ -370,13 +414,13 @@ def commit_feeds(api, plan, published_at, attempts=4):
             if isinstance(error, RemoteFailure) and error.status not in (None, 409, 422):
                 raise
             continue
-        # Verify both feeds from one immutable current HEAD after the ref update.
+        # Verify every feed from one immutable current HEAD after the ref update.
         final_sha = head_sha(api)
         final = remote_feeds(api, plan["apps"], final_sha)
         if final == proposed:
             return {"sha": new_commit["sha"], "observed_head": final_sha, "changed": True}
         # A newer concurrent update is preserved; the next iteration rejects downgrade.
-    raise ValueError("main 并发变化或写入结果未确认；未强制更新，重试会重新核验两源")
+    raise ValueError("main 并发变化或写入结果未确认；未强制更新，重试会重新核验各系列更新源")
 
 
 def promote_batch(api, plan):
@@ -394,6 +438,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("apk11", "apk10", "launcher11-root", "launcher10-root"):
         parser.add_argument("--" + name, required=True)
+    parser.add_argument("--apk12")
+    parser.add_argument("--launcher12-root")
+    parser.add_argument("--notes-file", help="包含更新内容和各系列实际版本的UTF-8发行说明")
     parser.add_argument("--sdk")
     parser.add_argument("--java-home")
     parser.add_argument("--dry-run", action="store_true", help="仅本地核验；不读取凭据、不联网、不发布")

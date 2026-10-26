@@ -2,6 +2,8 @@
 import base64
 from copy import deepcopy
 import importlib.util
+import hashlib
+import tempfile
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -171,6 +173,88 @@ class BatchPublicationTests(unittest.TestCase):
         self.assertEqual(self.api.files(), self.api.initial)
         self.assertFalse(any(method == "PATCH" and (path.endswith("/releases/7") or
                             path.endswith("/git/refs/heads/main")) for method, path, _ in self.api.events))
+
+    def triple(self):
+        plan = fixture()
+        plan["tag"] += "-12-270007"
+        app = deepcopy(plan["apps"][0]);app["id"] = "stacked-desktop-redmagic12"
+        feed = deepcopy(plan["feeds"][0]);feed["appId"] = app["id"]
+        feed["release"]["versionCode"] = 270007
+        feed["release"]["apk"]["url"] = batch.asset_url(plan["tag"], "12-270007.apk")
+        plan["apps"].append(app);plan["feeds"].append(feed)
+        asset = deepcopy(plan["assets"][0]);asset.update(name="12-270007.apk", label="堆叠桌面12-270007.apk")
+        plan["assets"].append(asset)
+        for original in plan["feeds"][:2]:
+            name = original["release"]["apk"]["url"].rsplit("/",1)[-1]
+            original["release"]["apk"]["url"] = batch.asset_url(plan["tag"], name)
+        plan["notes"] = "10.x.x系统请安装堆叠桌面10-250001\n11.x.x系统请安装堆叠桌面11-260029\n12.x.x系统请安装堆叠桌面12-270007\n新增长按动作震动反馈"
+        plan["title"] = "堆叠桌面 10 / 11 / 12"
+        for original in plan["feeds"]:original["release"]["notes"] = plan["notes"]
+        return plan, FakeGitHub(plan)
+
+    def test_three_series_upload_snapshots_preserve_each_source_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory);work = root / "work";work.mkdir()
+            versions = {"10": {"versionCode": 250002, "versionName": "25.5"},
+                        "11": {"versionCode": 260030, "versionName": "26.9"},
+                        "12": {"versionCode": 270007, "versionName": "27.0"}}
+            apps = [{"id": identity, "packageName": "com.zte.mifavor.launcher", "signingCertificateSha256": batch.CERTIFICATE}
+                    for identity in (*batch.IDS, "stacked-desktop-redmagic12")]
+            (root / "apps.json").write_text(json.dumps({"repository": batch.REPOSITORY, "apps": apps}), encoding="utf-8")
+            values = {"sdk": None, "java_home": None}
+            for series in (10, 11, 12):
+                source = root / str(series);source.mkdir()
+                apk = root / f"{series}.apk";apk.write_bytes(str(series).encode())
+                values[f"launcher{series}_root"] = source;values[f"apk{series}"] = apk
+            notes = root / "description.txt"
+            notes.write_text("堆叠桌面10-250002\n堆叠桌面11-260030\n堆叠桌面12-270007", encoding="utf-8")
+            values["notes_file"] = notes
+            def tool(source, name):
+                if name == "check-launcher-stack-only-apk.py":
+                    return SimpleNamespace(expected_versions=lambda _: versions[source.name])
+                return SimpleNamespace(parse_manifest=lambda _: None)
+            def inspect(args, app):
+                apk = Path(args.apk);series = apk.read_bytes().decode();version = versions[series]
+                feed = {"schemaVersion": 1, "appId": app["id"], "packageName": app["packageName"], "release": {
+                    **version, "minSdk": 31, "publishedAt": "2026-10-26T00:00:00Z", "notes": notes.read_text(encoding="utf-8"),
+                    "apk": {"url": batch.asset_url(app["id"]+"-v"+str(version["versionCode"]), app["id"]+"-x.apk"),
+                            "size": apk.stat().st_size, "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+                            "certificateSha256": batch.CERTIFICATE}}}
+                return apk, feed, "unused", "unused"
+            with patch.object(batch, "ROOT", root), patch.object(batch, "load_tool", tool), \
+                 patch.object(batch, "verify_family"), patch.object(batch.publish, "inspect_apk", inspect):
+                plan = batch.preflight(SimpleNamespace(**values), work)
+            for asset, expected in zip(plan["assets"], (b"11", b"10", b"10", b"12")):
+                self.assertEqual(asset["apk"].read_bytes(), expected, "another series overwrote the upload snapshot")
+                self.assertEqual(hashlib.sha256(asset["apk"].read_bytes()).hexdigest(), asset["sha256"])
+            self.assertEqual(len({a["apk"] for a in plan["assets"]}), 3)
+
+    def test_three_series_keep_compatibility_asset_and_promote_all_feeds_together(self):
+        plan, api = self.triple()
+        batch.promote_batch(api, plan)
+        self.assertEqual(len(api.assets), 4)
+        self.assertEqual(api.release["body"], plan["notes"])
+        self.assertEqual(api.release["name"], plan["title"])
+        writes = [data for method,path,data in api.events if method=="POST" and path.endswith("/git/trees")]
+        self.assertEqual(len(writes), 1)
+        self.assertEqual({entry["path"] for entry in writes[0]["tree"]}, {f"updates/{a['id']}.json" for a in plan["apps"]})
+        for feed in plan["feeds"]:
+            actual = json.loads(api.files()[f"updates/{feed['appId']}.json"])
+            self.assertEqual(actual["release"]["apk"], feed["release"]["apk"])
+        previous = api.head
+        batch.promote_batch(api, plan)
+        self.assertEqual(api.head, previous)
+        self.assertEqual(sum(m=="UPLOAD" for m,_,_ in api.events), 4)
+
+    def test_failed_third_series_keeps_every_feed_and_retry_reuses_prior_assets(self):
+        plan, api = self.triple();api.fail_upload = "12-270007.apk"
+        with self.assertRaises(ConnectionResetError):batch.promote_batch(api, plan)
+        self.assertTrue(api.release["draft"])
+        self.assertEqual(api.files(), api.initial)
+        api.fail_upload = None
+        batch.promote_batch(api, plan)
+        self.assertFalse(api.release["draft"])
+        self.assertEqual(sum(m=="UPLOAD" and p=="11-260029.apk" for m,p,_ in api.events), 1)
 
     def test_three_confirmed_assets_then_one_commit_for_exactly_two_feeds(self):
         result = batch.promote_batch(self.api, self.plan)

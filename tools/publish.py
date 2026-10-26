@@ -94,9 +94,15 @@ class GitHub:
             connection.putheader("Content-Type", "application/vnd.android.package-archive")
             connection.putheader("Content-Length", str(apk.stat().st_size))
             connection.endheaders()
+            sent, reported = 0, -1
             with apk.open("rb") as stream:
                 for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                     connection.send(chunk)
+                    sent += len(chunk)
+                    progress = sent * 100 // apk.stat().st_size
+                    if progress // 20 > reported:
+                        reported = progress // 20
+                        print(f"上传 {asset_name}: {progress}%", flush=True)
             response = connection.getresponse()
             body = response.read(1024 * 1024)
             require(response.status == 201, f"APK 上传失败：HTTP {response.status} {body.decode('utf-8', errors='replace')}")

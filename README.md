@@ -40,29 +40,33 @@ python tools/publish.py --app redmagic-duo --apk "新版.apk" --notes-file "更�
 
 每个软件、版本分别生成标签，例如 `redmagic-duo-v20518`。客户端读取独立清单，避免仓库级“Latest”混淆多个软件。
 
-### 两个系列桌面同批次发布
+### 三个系列桌面同批次发布
 
-使用 `tools/publish-launcher-batch.py` 检查两个系列的最终签名APK并生成精确更新说明。它在同一Release提供显示标签为 `堆叠桌面11-<内部号>.apk` 和 `堆叠桌面10-<内部号>.apk` 的附件。GitHub过滤文件名中的中文，实际下载名为 `11-<内部号>.apk`、`10-<内部号>.apk`；工具核对实际名称并设置完整中文显示标签。另保留与手动10附件逐字节相同的 `stacked-desktop-redmagic10-<内部号>.apk`，供已有10客户端在线下载。11清单指向实际11附件地址，10清单指向兼容附件；包名相同不改变各自软件标识、版本、哈希及系列校验。
+[本批次发行](https://github.com/liligit1815/lispacerelease/releases/tag/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007)
+
+10.x.x系统请安装[堆叠桌面10-250002](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/10-250002.apk)
+
+11.x.x系统请安装[堆叠桌面11-260030](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/11-260030.apk)
+
+12.x.x系统请安装[堆叠桌面12-270007](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/12-270007.apk)
+
+更新内容：
+
+1. 新增长按动作震动反馈
+2. 新增边界动画回弹效果
+3. 优化动画效果和流畅性
+
+使用 `tools/publish-launcher-batch.py` 核验三个系列的最终签名APK，并通过 `--notes-file` 指定本次更新内容与下载说明。GitHub附件采用完整中文显示标签，实际下载文件名为 `10-<内部号>.apk`、`11-<内部号>.apk`、`12-<内部号>.apk`。红魔10另保留内容相同的 `stacked-desktop-redmagic10-<内部号>.apk`，兼容已有客户端的在线更新地址规则。
 
 ```powershell
-python tools/publish-launcher-batch.py --apk11 "红魔11最终签名.apk" --apk10 "红魔10最终签名.apk" `
-  --launcher11-root "红魔11独立工作树" --launcher10-root "红魔10独立工作树" `
-  --sdk "Android SDK目录" --java-home "JDK目录" --dry-run
+python tools/publish-launcher-batch.py --apk10 "红魔10最终签名.apk" --apk11 "红魔11最终签名.apk" --apk12 "红魔12最终签名.apk" `
+  --launcher10-root "红魔10独立工作树" --launcher11-root "红魔11独立工作树" --launcher12-root "红魔12独立工作树" `
+  --notes-file "本批更新说明.txt" --sdk "Android SDK目录" --java-home "JDK目录" --dry-run
 ```
 
-检查通过后以相同参数去掉 `--dry-run`。所有附件完成上传和校验后才公开Release；两个独立清单在同一Git提交中更新，其余软件的清单保持不变。重试复用相同标签和内容，不替换已公开APK。
+检查通过后以相同参数去掉 `--dry-run`。所有附件完成上传和校验后才公开Release；三个独立清单在同一Git提交更新。重复发布相同版本必须保持APK哈希和签名一致；仅迁移到同批次发行不改变安装包身份。网络中断后可使用相同命令复用已完成附件。
 
-源码：[红魔11分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-11) · [红魔10分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-10)。本仓库不保存桌面源码、编译过程文件或私有签名材料。
-
-### 红魔12桌面
-
-红魔12 Pro+请下载 [12-270007版本](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic12-v270007/12-270007.apk)。本版修复点击最近任务卡片的偏移与突跳动画、长按偶发只震动或松手后才显示菜单的问题，新增堆叠样式首尾卡片阻尼回弹，包含上滑删除动画修复及跟随系统设置的长按振动反馈。
-
-```powershell
-python tools/publish.py --app stacked-desktop-redmagic12 --apk "红魔12最终签名.apk" --notes-file "更新说明.md" --sdk "Android SDK目录" --java-home "JDK目录" --dry-run
-```
-
-检查通过后以相同参数去掉 `--dry-run`。12系列的APK及独立清单使用单独Release维护，不更改10或11清单。源码见 [redmagic-12](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-12)。
+源码：[红魔10分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-10) · [红魔11分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-11) · [红魔12分支](https://github.com/liligit1815/LS_RedMagicLauncher/tree/redmagic-12)。本仓库不保存桌面源码、编译过程文件或私有签名材料。
 
 ## 文件布局
 
