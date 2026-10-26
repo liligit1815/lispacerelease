@@ -3,15 +3,15 @@
   "appId": "stacked-desktop",
   "packageName": "com.zte.mifavor.launcher",
   "release": {
-    "versionCode": 260029,
+    "versionCode": 260030,
     "versionName": "26.9.260.908.2609081608",
     "minSdk": 31,
-    "publishedAt": "2026-10-14T08:32:51Z",
-    "notes": "红魔11系列安装堆叠桌面11-260029.apk\n红魔10系列安装堆叠桌面10-250001.apk\n其它机型自测。",
+    "publishedAt": "2026-10-26T07:58:17Z",
+    "notes": "下载描述：\n10.x.x系统请安装堆叠桌面10-250002\n11.x.x系统请安装堆叠桌面11-260030\n12.x.x系统请安装堆叠桌面12-270007\n\n更新内容：\n1. 新增长按动作震动反馈\n2. 新增边界动画回弹效果\n3. 优化动画效果和流畅性",
     "apk": {
-      "url": "https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260029-10-250001/11-260029.apk",
+      "url": "https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/11-260030.apk",
       "size": 31396145,
-      "sha256": "77a569bdf89747692e419afb6ce0932103c34015d53bccdc14296c3042682e5b",
+      "sha256": "493ebe616455d6175f833de295319f1ea5114c1660c23d971e42286d7c14fe88",
       "certificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"
     }
   }

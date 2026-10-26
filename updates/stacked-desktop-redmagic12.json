@@ -6,10 +6,10 @@
     "versionCode": 270007,
     "versionName": "27.0.000.000.2609231706",
     "minSdk": 31,
-    "publishedAt": "2026-10-26T05:57:16Z",
-    "notes": "修复红魔12桌面点击最近任务卡片的偏移与突跳动画、长按偶发只震动或松手后才显示菜单的问题，新增堆叠样式首尾卡片阻尼回弹，请下载12-270007版本。",
+    "publishedAt": "2026-10-26T07:58:17Z",
+    "notes": "下载描述：\n10.x.x系统请安装堆叠桌面10-250002\n11.x.x系统请安装堆叠桌面11-260030\n12.x.x系统请安装堆叠桌面12-270007\n\n更新内容：\n1. 新增长按动作震动反馈\n2. 新增边界动画回弹效果\n3. 优化动画效果和流畅性",
     "apk": {
-      "url": "https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic12-v270007/12-270007.apk",
+      "url": "https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/12-270007.apk",
       "size": 50056827,
       "sha256": "8256c8add37b905226f9abc170b4a6a5f922ce0107e1ad05ef0f928478b6be0b",
       "certificateSha256": "4e5c23c41de3d7d56f120309e9fe8dab7d53483c50ef18a176e00558abf7b8cb"
