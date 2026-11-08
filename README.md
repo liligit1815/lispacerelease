@@ -48,13 +48,15 @@ python tools/publish.py --app redmagic-duo --apk "新版.apk" --notes-file "更�
 
 11.x.x系统请安装[堆叠桌面11-260030](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/11-260030.apk)
 
-12.x.x系统请安装[堆叠桌面12-270007](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/12-270007.apk)
+12.x.x系统请安装[堆叠桌面12-270008](https://github.com/liligit1815/lispacerelease/releases/download/stacked-desktop-redmagic10-batch-11-260030-10-250002-12-270007/12-270008.apk)
 
 更新内容：
 
 1. 新增长按动作震动反馈
 2. 新增边界动画回弹效果
 3. 优化动画效果和流畅性
+
+红魔12 · 270008：修复堆叠、环绕和扇形样式上下拖动任务卡片时的层级突变与遮挡问题；标准和宫格样式保留原厂拖动逻辑。
 
 使用 `tools/publish-launcher-batch.py` 核验三个系列的最终签名APK，并通过 `--notes-file` 指定本次更新内容与下载说明。每个系列只发布一个附件。红魔10显示为 `堆叠桌面10-<内部号>.apk`，实际文件名保留 `stacked-desktop-redmagic10-<内部号>.apk`，供手动下载和已有客户端在线更新共同使用；11、12系列实际文件名分别为 `11-<内部号>.apk`、`12-<内部号>.apk`。三个独立清单分别绑定本系列附件、版本、大小、SHA-256和签名，不能按包名相同混用。
 
