@@ -2,28 +2,7 @@
 
 每个软件使用固定 HTTPS 地址 `https://raw.githubusercontent.com/liligit1815/lispacerelease/main/updates/<appId>.json`。软件必须校验 `schemaVersion`、`appId` 和 `packageName`。首次发布之前 `release` 为 `null`，客户端显示暂无可更新版本。
 
-```json
-{
-  "schemaVersion": 1,
-  "appId": "redmagic-duo",
-  "packageName": "ls.augment.com",
-  "release": {
-    "versionCode": 20518,
-    "versionName": "2.0.0-alpha1-test20518",
-    "minSdk": 35,
-    "publishedAt": "2026-10-11T00:00:00Z",
-    "notes": "新增软件内检查更新、下载及系统安装入口。",
-    "apk": {
-      "url": "https://github.com/liligit1815/lispacerelease/releases/download/redmagic-duo-v20518/redmagic-duo-20518.apk",
-      "size": 123456,
-      "sha256": "实际 APK 的 64 位十六进制 SHA-256",
-      "certificateSha256": "既有签名证书的 64 位十六进制 SHA-256"
-    }
-  }
-}
-```
-
-示例中的时间、大小和哈希为格式说明，正式数据由发布工具从签名 APK 和 GitHub Release 生成。
+完整字段和实际取值见[红魔 Duo 当前更新清单](../updates/redmagic-duo.json)。
 
 ## 检查与下载
 
